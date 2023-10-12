@@ -1,0 +1,73 @@
+---
+#удаляем старые версии доккера, если есть
+     - name: remove docker old versions
+       apt:
+         pkg:
+           - docker
+           - docker-engine
+           - docker.io
+           - containerd
+           - runc
+         state: absent
+
+#Устанавливаем необходимые предварительные пакеты
+     - name: Install pre-requisites
+       apt:
+         pkg:
+           - ca-certificates
+           - curl
+           - gnupg
+           - lsb-release
+           - apt-transport-https
+         state: latest
+         update_cache: yes
+
+#Идем далее по инструкции, добавляем GPG ключ для доккера
+     - name: Add Docker GPG apt Key
+       apt_key:
+         url: "https://download.docker.com/linux/{{ ansible_distribution | lower }}/gpg"
+         state: present
+
+#Добавляем репозиторий
+     - name: Add Docker Repository
+       apt_repository:
+         repo: "{{ docker_apt_repository }}"
+         state: present
+         filename: docker
+         update_cache: true
+
+#Я решил оставить это и следующее действие, т.к. изначально у меня возникли трудности с установкой доккер + доккер компоуз на Debian 11 (опишу в пояснительной).
+     - name: Try command
+       command: echo "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | sudo tee /etc/apt/sources.list.$
+
+#Это я еще раз апдейтил кэш после выполнения предыдущей команды. По идее, эта и предыдущая команда в этом плэйбуке лишние.
+     - name: apt update
+       apt:
+         update_cache: true
+
+#Устанавливаем пакеты доккера
+     - name: Update apt and install docker-ce
+       apt:
+         pkg:
+           - docker-ce
+           - docker-ce-cli
+           - containerd.io
+           - docker-buildx-plugin
+           - docker-compose-plugin
+         state: latest
+         update_cache: false
+
+#Рестартуем службу, ну и инэйблд = йес, само-собой
+     - name: Starting Docker service
+       service:
+         name: docker
+         state: restarted
+         enabled: yes
+
+#Ставим доккер-компоуз
+     - name: Install docker-compose
+       get_url:
+         url : "https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-Linux-x86_64"
+         dest: /usr/local/bin/docker-compose
+         mode: 'a+x'
+         force: yes
