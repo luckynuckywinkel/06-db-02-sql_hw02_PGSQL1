@@ -99,6 +99,8 @@ Password for user postgres:
 
 - Отлично. Идем дальше.
 
+---
+
   
 
 ## Задача 2
@@ -130,6 +132,152 @@ Password for user postgres:
 - описание таблиц (describe);
 - SQL-запрос для выдачи списка пользователей с правами над таблицами test_db;
 - список пользователей с правами над таблицами test_db.
+
+### Решение:  
+
+- Последовательно выполним все необходимые действия:
+
+```
+root@pg1:/home/vagrant/docker-compose# docker exec -it postgres12 /bin/sh
+# psql -U postgres
+Password for user postgres:
+psql (12.16 (Debian 12.16-1.pgdg110+1))
+Type "help" for help.
+
+postgres=# \l
+                                 List of databases
+   Name    |  Owner   | Encoding |  Collate   |   Ctype    |   Access privileges
+-----------+----------+----------+------------+------------+-----------------------
+ postgres  | postgres | UTF8     | en_US.utf8 | en_US.utf8 |
+ template0 | postgres | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +
+           |          |          |            |            | postgres=CTc/postgres
+ template1 | postgres | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +
+           |          |          |            |            | postgres=CTc/postgres
+(3 rows)
+
+postgres=# CREATE USER test-admin-user WITH PASSWORD 'strongpassword';
+ERROR:  syntax error at or near "-"
+LINE 1: CREATE USER test-admin-user WITH PASSWORD 'strongpassword';
+                        ^
+postgres=# CREATE USER test_admin_user WITH PASSWORD 'strongpassword';
+CREATE ROLE
+postgres=# CREATE DATABASE test_db;
+CREATE DATABASE
+postgres=# \c test_db
+You are now connected to database "test_db" as user "postgres".
+test_db=# CREATE TABLE orders (
+    id serial PRIMARY KEY,
+    order_name varchar(200) NOT NULL,
+    price integer
+);
+CREATE TABLE
+test_db=# CREATE TABLE clients (
+    id serial PRIMARY KEY,
+    lastname varchar(255),
+    country varchar(255),
+    order integer,
+    FOREIGN KEY (order) REFERENCES orders (id)
+);
+ERROR:  syntax error at or near "order"
+LINE 5:     order integer,
+            ^
+test_db=# CREATE TABLE clients (
+    id serial PRIMARY KEY,
+    lastname varchar(255),
+    country varchar(255),
+    purchase integer,
+    FOREIGN KEY (purchase) REFERENCES orders (id)
+);
+CREATE TABLE
+test_db=# GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO test_admin_user;
+GRANT
+test_db=# create user test_simple_user with password 'simplepassword';
+CREATE ROLE
+test_db=# grant select, insert, update, delete on all tables in schema public to test_simple_user;
+GRANT
+test_db=# \l+
+                                                                   List of databases
+   Name    |  Owner   | Encoding |  Collate   |   Ctype    |   Access privileges   |  Size   | Tablespace |                Description
+-----------+----------+----------+------------+------------+-----------------------+---------+------------+--------------------------------------------
+ postgres  | postgres | UTF8     | en_US.utf8 | en_US.utf8 |                       | 7969 kB | pg_default | default administrative connection database
+ template0 | postgres | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +| 7825 kB | pg_default | unmodifiable empty database
+           |          |          |            |            | postgres=CTc/postgres |         |            |
+ template1 | postgres | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +| 7825 kB | pg_default | default template for new databases
+           |          |          |            |            | postgres=CTc/postgres |         |            |
+ test_db   | postgres | UTF8     | en_US.utf8 | en_US.utf8 |                       | 8097 kB | pg_default |
+(4 rows)
+
+test_db=# \dt orders
+         List of relations
+ Schema |  Name  | Type  |  Owner
+--------+--------+-------+----------
+ public | orders | table | postgres
+(1 row)
+
+test_db=# \dt clients
+          List of relations
+ Schema |  Name   | Type  |  Owner
+--------+---------+-------+----------
+ public | clients | table | postgres
+(1 row)
+
+test_db=# create index index_country on clients (country);
+CREATE INDEX
+test_db=# \dt+ clients
+                       List of relations
+ Schema |  Name   | Type  |  Owner   |    Size    | Description
+--------+---------+-------+----------+------------+-------------
+ public | clients | table | postgres | 8192 bytes |
+(1 row)
+
+test_db=# SELECT grantee, table_name, privilege_type
+FROM information_schema.table_privileges
+WHERE table_catalog = 'test_db' AND table_schema = 'public';
+     grantee      | table_name | privilege_type
+------------------+------------+----------------
+ postgres         | orders     | INSERT
+ postgres         | orders     | SELECT
+ postgres         | orders     | UPDATE
+ postgres         | orders     | DELETE
+ postgres         | orders     | TRUNCATE
+ postgres         | orders     | REFERENCES
+ postgres         | orders     | TRIGGER
+ test_admin_user  | orders     | INSERT
+ test_admin_user  | orders     | SELECT
+ test_admin_user  | orders     | UPDATE
+ test_admin_user  | orders     | DELETE
+ test_admin_user  | orders     | TRUNCATE
+ test_admin_user  | orders     | REFERENCES
+ test_admin_user  | orders     | TRIGGER
+ test_simple_user | orders     | INSERT
+ test_simple_user | orders     | SELECT
+ test_simple_user | orders     | UPDATE
+ test_simple_user | orders     | DELETE
+ postgres         | clients    | INSERT
+ postgres         | clients    | SELECT
+ postgres         | clients    | UPDATE
+ postgres         | clients    | DELETE
+ postgres         | clients    | TRUNCATE
+ postgres         | clients    | REFERENCES
+ postgres         | clients    | TRIGGER
+ test_admin_user  | clients    | INSERT
+ test_admin_user  | clients    | SELECT
+ test_admin_user  | clients    | UPDATE
+ test_admin_user  | clients    | DELETE
+ test_admin_user  | clients    | TRUNCATE
+ test_admin_user  | clients    | REFERENCES
+ test_admin_user  | clients    | TRIGGER
+ test_simple_user | clients    | INSERT
+ test_simple_user | clients    | SELECT
+ test_simple_user | clients    | UPDATE
+ test_simple_user | clients    | DELETE
+(36 rows)
+```
+
+
+
+
+
 
 ## Задача 3
 
@@ -202,8 +350,3 @@ Password for user postgres:
 
 ---
 
-### Как cдавать задание
-
-Выполненное домашнее задание пришлите ссылкой на .md-файл в вашем репозитории.
-
----
