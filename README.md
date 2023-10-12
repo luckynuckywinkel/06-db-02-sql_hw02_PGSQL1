@@ -276,7 +276,7 @@ WHERE table_catalog = 'test_db' AND table_schema = 'public';
 
 - Вставил весь свой листинг не удаляя ошибок.
 
-- Комментарии следующие - PGSQL не дает использовать символ **-** в имени пользователя, не дает создать поле order, т.к. order является зарезервированным в SQL словом, в какой-то момент я понял, что можно не писать большими буквами команды (:)), в какой-то момент вспомнил, что нужно было добавить индекс к полю **страна проживания**.
+- Комментарии следующие - PGSQL не дает использовать символ **-** в имени пользователя, не дает создать поле order, т.к. order является зарезервированным в SQL словом, в какой-то момент я понял, что можно не писать большими буквами команды :), в какой-то момент вспомнил, что нужно было добавить индекс к полю **страна проживания**.
 
 ---
 
@@ -315,7 +315,68 @@ WHERE table_catalog = 'test_db' AND table_schema = 'public';
 Приведите в ответе:
 
     - запросы,
-    - результаты их выполнения.
+    - результаты их выполнения.  
+
+### Решение:  
+
+- Заполним таблицы в соответствие с задачей:
+
+```
+test_db=# INSERT INTO orders (order_name, price)
+VALUES
+    ('Шоколад', 10),
+    ('Принтер', 3000),
+    ('Книга', 500),
+    ('Монитор', 7000),
+    ('Гитара', 4000);
+INSERT 0 5
+test_db=# INSERT INTO clients (lastname, country)
+VALUES
+    ('Иванов Иван Иванович', 'USA'),
+    ('Петров Петр Петрович', 'Canada'),
+    ('Иоганн Себастьян Бах', 'Japan'),
+    ('Ронни Джеймс Дио', 'Russia'),
+    ('Ritchie Blackmore', 'Russia');
+INSERT 0 5
+
+test_db=# SELECT * FROM clients;
+ id |       lastname       | country | purchase
+----+----------------------+---------+----------
+  1 | Иванов Иван Иванович | USA     |
+  2 | Петров Петр Петрович | Canada  |
+  3 | Иоганн Себастьян Бах | Japan   |
+  4 | Ронни Джеймс Дио     | Russia  |
+  5 | Ritchie Blackmore    | Russia  |
+(5 rows)
+
+test_db=# SELECT * FROM orders;
+ id | order_name | price
+----+------------+-------
+  1 | Шоколад    |    10
+  2 | Принтер    |  3000
+  3 | Книга      |   500
+  4 | Монитор    |  7000
+  5 | Гитара     |  4000
+(5 rows)
+
+
+test_db=# SELECT COUNT(*) AS entries_amount_orders FROM orders;
+ entries_amount_orders
+-----------------------
+                     5
+(1 row)
+
+test_db=# SELECT COUNT(*) AS entries_amount_orders FROM clients;
+ entries_amount_orders
+-----------------------
+                     5
+(1 row)
+```
+
+- Здесь комментариев, вроде как, нет.
+
+---
+
 
 ## Задача 4
 
@@ -333,14 +394,95 @@ WHERE table_catalog = 'test_db' AND table_schema = 'public';
 
 Приведите SQL-запрос для выдачи всех пользователей, которые совершили заказ, а также вывод этого запроса.
  
-Подсказка: используйте директиву `UPDATE`.
+Подсказка: используйте директиву `UPDATE`.  
+
+### Решение:  
+
+- Во втором задании при формировании полей в таблице clients, мы уже создали FOREIGN KEY, который связывает поле *purchase* таблицы **clients** с полем *id* таблицы **orders**. Попробуем использовать его:
+
+```
+test_db=# UPDATE clients
+SET purchase = (SELECT id FROM orders WHERE order_name = 'Книга')
+WHERE lastname = 'Иванов Иван Иванович';
+
+UPDATE clients
+SET purchase = (SELECT id FROM orders WHERE order_name = 'Монитор')
+WHERE lastname = 'Петров Петр Петрович';
+
+UPDATE clients
+SET purchase = (SELECT id FROM orders WHERE order_name = 'Гитара')
+WHERE lastname = 'Иоганн Себастьян Бах';
+UPDATE 1
+UPDATE 1
+UPDATE 1
+```
+
+- Используя JOIN выведем всех клиентов, которые совершили заказ. JOIN здесь основная команда, которая сопоставляет строки из clients.purchase м orders.id. Для наглядности:
+
+```
+test_db=# SELECT * FROM clients;
+ id |       lastname       | country | purchase
+----+----------------------+---------+----------
+  4 | Ронни Джеймс Дио     | Russia  |
+  5 | Ritchie Blackmore    | Russia  |
+  1 | Иванов Иван Иванович | USA     |        3
+  2 | Петров Петр Петрович | Canada  |        4
+  3 | Иоганн Себастьян Бах | Japan   |        5
+(5 rows)
+```
+
+
+```
+test_db=# SELECT clients.id, clients.lastname, clients.country, orders.order_name, orders.price
+FROM clients
+JOIN orders ON clients.purchase = orders.id;
+ id |       lastname       | country | order_name | price
+----+----------------------+---------+------------+-------
+  1 | Иванов Иван Иванович | USA     | Книга      |   500
+  2 | Петров Петр Петрович | Canada  | Монитор    |  7000
+  3 | Иоганн Себастьян Бах | Japan   | Гитара     |  4000
+(3 rows)
+```
+
+---
+
+
 
 ## Задача 5
 
 Получите полную информацию по выполнению запроса выдачи всех пользователей из задачи 4 
 (используя директиву EXPLAIN).
 
-Приведите получившийся результат и объясните, что значат полученные значения.
+Приведите получившийся результат и объясните, что значат полученные значения.  
+
+### Решение:    
+
+- Выполним SQL-запрос:
+
+```
+test_db=# EXPLAIN SELECT clients.id, clients.lastname, clients.country, orders.order_name, orders.price
+FROM clients
+JOIN orders ON clients.purchase = orders.id;
+                               QUERY PLAN
+------------------------------------------------------------------------
+ Hash Join  (cost=11.57..24.61 rows=70 width=1458)
+   Hash Cond: (orders.id = clients.purchase)
+   ->  Seq Scan on orders  (cost=0.00..11.70 rows=170 width=426)
+   ->  Hash  (cost=10.70..10.70 rows=70 width=1040)
+         ->  Seq Scan on clients  (cost=0.00..10.70 rows=70 width=1040)
+(5 rows)
+```
+
+- Hash Join - использует операцию хеш-соединения (Hash Join) для объединения данных из таблиц orders и clients + примерная "стоимость" запроса (это очень сложная для моего понимания штука, типа, сколько постгри затратит ресурсов на выполнение) + сколько должно получиться строк и их ширина;
+
+- Hash Cond - условие соединения, которое описывает какие столбцы используются для сравнения записей из таблиц;
+
+- Далее идут операции сканирования и хэширования используемых таблиц и оценка их "стоимости"
+
+---
+
+
+
 
 ## Задача 6
 
@@ -352,7 +494,54 @@ WHERE table_catalog = 'test_db' AND table_schema = 'public';
 
 Восстановите БД test_db в новом контейнере.
 
-Приведите список операций, который вы применяли для бэкапа данных и восстановления. 
+Приведите список операций, который вы применяли для бэкапа данных и восстановления.   
+
+### Решение:  
+
+- Это, казалось бы, простое задание съело мне весь мозг.
+
+- Начнем с того, что если мы останавливаем контейнер командой **docker compose down**, то и второй мой замонтированный волум сохраняется, соответственно, сохраняется и test_db, потому что в db-волуме лежат базы данных.
+
+- В общем, бэкап я сделал вот так: **pg_dump -U postgres test_db > /var/lib/postgresql/backup/test_db_backup.sql**. Это был бэкап в директорию, которая связана с моим волумом.
+
+- Потом я, просто, скопировал его в каталог в котором работаю и снёс к чертям контейнер со всеми волумами - **docker-compose down --volumes**. А после поднятия нового контейнера, закинул бэкап через волум обратно.
+
+- Затем, создал пустую базу test_db, вышел из оснастки в контейнер и выполнил: **psql -U postgres -d test_db < /var/lib/postgresql/backup/test_db_backup.sql**
+
+- Пользователей он не вытянул, но с базой все ок:
+
+```
+ERROR:  role "test_admin_user" does not exist
+ERROR:  role "test_simple_user" does not exist
+ERROR:  role "test_admin_user" does not exist
+ERROR:  role "test_simple_user" does not exist
+
+postgres=# \l+
+                                                                   List of databases
+   Name    |  Owner   | Encoding |  Collate   |   Ctype    |   Access privileges   |  Size   | Tablespace |                Description
+-----------+----------+----------+------------+------------+-----------------------+---------+------------+--------------------------------------------
+ postgres  | postgres | UTF8     | en_US.utf8 | en_US.utf8 |                       | 7969 kB | pg_default | default administrative connection database
+ template0 | postgres | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +| 7825 kB | pg_default | unmodifiable empty database
+           |          |          |            |            | postgres=CTc/postgres |         |            |
+ template1 | postgres | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +| 7825 kB | pg_default | default template for new databases
+           |          |          |            |            | postgres=CTc/postgres |         |            |
+ test_db   | postgres | UTF8     | en_US.utf8 | en_US.utf8 |                       | 8145 kB | pg_default |
+(4 rows)
+
+postgres=# \c test_db
+You are now connected to database "test_db" as user "postgres".
+test_db=# SELECT * FROM clients;
+ id |       lastname       | country | purchase
+----+----------------------+---------+----------
+  4 | Ронни Джеймс Дио     | Russia  |
+  5 | Ritchie Blackmore    | Russia  |
+  1 | Иванов Иван Иванович | USA     |        3
+  2 | Петров Петр Петрович | Canada  |        4
+  3 | Иоганн Себастьян Бах | Japan   |        5
+(5 rows)
+```
+
+
 
 ---
 
